@@ -13,8 +13,7 @@ pub(crate) const USE_GAS: bool = !cfg!(feature = "no_gas_measuring");
 pub type DummyStateDB = InMemoryDB;
 
 pub use db::{Database, DatabaseCommit, InMemoryDB};
-pub use evm::{evm_inner, new, EVM};
-pub use evm_impl::EVMData;
+pub use evm::{evm_inner, new, EVMData, EVM};
 pub use journaled_state::{JournalEntry, JournaledState};
 
 extern crate alloc;

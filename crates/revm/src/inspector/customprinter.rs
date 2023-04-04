@@ -1,19 +1,20 @@
 //! Custom print inspector, it has step level information of execution.
 //! It is a great tool if some debugging is needed.
 //!
+use crate::evm::EVMData;
 use crate::interpreter::{opcode, CallInputs, CreateInputs, Gas, InstructionResult, Interpreter};
 use crate::primitives::{hex, Bytes, B160};
-use crate::{inspectors::GasInspector, Database, EVMData, Inspector};
+use crate::{inspectors::GasInspector, Inspector};
 #[derive(Clone, Default)]
 pub struct CustomPrintTracer {
     gas_inspector: GasInspector,
 }
 
-impl<DB: Database> Inspector<DB> for CustomPrintTracer {
+impl<E> Inspector<E> for CustomPrintTracer {
     fn initialize_interp(
         &mut self,
         interp: &mut Interpreter,
-        data: &mut EVMData<'_, DB>,
+        data: &mut dyn EVMData<E>,
         is_static: bool,
     ) -> InstructionResult {
         self.gas_inspector
@@ -26,7 +27,7 @@ impl<DB: Database> Inspector<DB> for CustomPrintTracer {
     fn step(
         &mut self,
         interp: &mut Interpreter,
-        data: &mut EVMData<'_, DB>,
+        data: &mut dyn EVMData<E>,
         is_static: bool,
     ) -> InstructionResult {
         let opcode = interp.current_opcode();
@@ -36,7 +37,7 @@ impl<DB: Database> Inspector<DB> for CustomPrintTracer {
 
         println!(
             "depth:{}, PC:{}, gas:{:#x}({}), OPCODE: {:?}({:?})  refund:{:#x}({}) Stack:{:?}, Data size:{}",
-            data.journaled_state.depth(),
+            data.journaled_state().depth(),
             interp.program_counter(),
             gas_remaining,
             gas_remaining,
@@ -56,7 +57,7 @@ impl<DB: Database> Inspector<DB> for CustomPrintTracer {
     fn step_end(
         &mut self,
         interp: &mut Interpreter,
-        data: &mut EVMData<'_, DB>,
+        data: &mut dyn EVMData<E>,
         is_static: bool,
         eval: InstructionResult,
     ) -> InstructionResult {
@@ -66,7 +67,7 @@ impl<DB: Database> Inspector<DB> for CustomPrintTracer {
 
     fn call_end(
         &mut self,
-        data: &mut EVMData<'_, DB>,
+        data: &mut dyn EVMData<E>,
         inputs: &CallInputs,
         remaining_gas: Gas,
         ret: InstructionResult,
@@ -80,7 +81,7 @@ impl<DB: Database> Inspector<DB> for CustomPrintTracer {
 
     fn create_end(
         &mut self,
-        data: &mut EVMData<'_, DB>,
+        data: &mut dyn EVMData<E>,
         inputs: &CreateInputs,
         ret: InstructionResult,
         address: Option<B160>,
@@ -94,7 +95,7 @@ impl<DB: Database> Inspector<DB> for CustomPrintTracer {
 
     fn call(
         &mut self,
-        _data: &mut EVMData<'_, DB>,
+        _data: &mut dyn EVMData<E>,
         inputs: &mut CallInputs,
         is_static: bool,
     ) -> (InstructionResult, Gas, Bytes) {
@@ -111,7 +112,7 @@ impl<DB: Database> Inspector<DB> for CustomPrintTracer {
 
     fn create(
         &mut self,
-        _data: &mut EVMData<'_, DB>,
+        _data: &mut dyn EVMData<E>,
         inputs: &mut CreateInputs,
     ) -> (InstructionResult, Option<B160>, Gas, Bytes) {
         println!(

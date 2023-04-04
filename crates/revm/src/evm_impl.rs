@@ -1,3 +1,4 @@
+use crate::evm::EVMData;
 use crate::interpreter::{
     analysis::to_analysed, gas, instruction_result::SuccessOrHalt, return_ok, return_revert,
     CallContext, CallInputs, CallScheme, Contract, CreateInputs, CreateScheme, Gas, Host,
@@ -17,17 +18,35 @@ use core::{cmp::min, marker::PhantomData};
 use revm_interpreter::{MAX_CODE_SIZE, MAX_INITCODE_SIZE};
 use revm_precompile::{Precompile, Precompiles};
 
-pub struct EVMData<'a, DB: Database> {
+pub struct EVMDataImpl<'a, DB: Database> {
     pub env: &'a mut Env,
     pub journaled_state: JournaledState,
     pub db: &'a mut DB,
     pub error: Option<DB::Error>,
 }
 
+impl<'a, DB: Database> EVMData<DB::Error> for EVMDataImpl<'a, DB> {
+    fn env(&mut self) -> &mut Env {
+        self.env
+    }
+
+    fn journaled_state(&mut self) -> &mut JournaledState {
+        &mut self.journaled_state
+    }
+
+    fn database(&mut self) -> &mut dyn Database<Error = DB::Error> {
+        self.db
+    }
+
+    fn error(&mut self) -> &mut Option<DB::Error> {
+        &mut self.error
+    }
+}
+
 pub struct EVMImpl<'a, GSPEC: Spec, DB: Database, const INSPECT: bool> {
-    data: EVMData<'a, DB>,
+    data: EVMDataImpl<'a, DB>,
     precompiles: Precompiles,
-    inspector: &'a mut dyn Inspector<DB>,
+    inspector: &'a mut dyn Inspector<DB::Error>,
     _phantomdata: PhantomData<GSPEC>,
 }
 
@@ -293,7 +312,7 @@ impl<'a, GSPEC: Spec, DB: Database, const INSPECT: bool> EVMImpl<'a, GSPEC, DB, 
     pub fn new(
         db: &'a mut DB,
         env: &'a mut Env,
-        inspector: &'a mut dyn Inspector<DB>,
+        inspector: &'a mut dyn Inspector<DB::Error>,
         precompiles: Precompiles,
     ) -> Self {
         let journaled_state = if GSPEC::enabled(SpecId::SPURIOUS_DRAGON) {
@@ -302,7 +321,7 @@ impl<'a, GSPEC: Spec, DB: Database, const INSPECT: bool> EVMImpl<'a, GSPEC, DB, 
             JournaledState::new_legacy(precompiles.len())
         };
         Self {
-            data: EVMData {
+            data: EVMDataImpl {
                 env,
                 journaled_state,
                 db,
