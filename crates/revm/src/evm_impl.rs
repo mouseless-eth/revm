@@ -51,7 +51,7 @@ pub struct EVMImpl<'a, GSPEC: Spec, DB: Database, const INSPECT: bool> {
 }
 
 #[async_trait::async_trait]
-pub trait Transact<DBError> {
+pub trait Transact<DBError>: Send {
     /// Do transaction.
     /// InstructionResult InstructionResult, Output for call or Address if we are creating contract, gas spend, gas refunded, State that needs to be applied.
     async fn transact(&mut self) -> EVMResult<DBError>;
@@ -376,7 +376,8 @@ impl<'a, GSPEC: Spec, DB: Database, const INSPECT: bool> EVMImpl<'a, GSPEC, DB, 
             let _ = self
                 .data
                 .journaled_state
-                .load_account(coinbase, self.data.db);
+                .load_account(coinbase, self.data.db)
+                .await;
             self.data.journaled_state.touch(&coinbase);
             let acc_coinbase = self
                 .data
@@ -395,7 +396,8 @@ impl<'a, GSPEC: Spec, DB: Database, const INSPECT: bool> EVMImpl<'a, GSPEC, DB, 
             let _ = self
                 .data
                 .journaled_state
-                .load_account(coinbase, self.data.db);
+                .load_account(coinbase, self.data.db)
+                .await;
             self.data.journaled_state.touch(&coinbase);
             (0, 0)
         };
@@ -915,55 +917,6 @@ impl<'a, GSPEC: Spec, DB: Database, const INSPECT: bool> EVMImpl<'a, GSPEC, DB, 
 impl<'a, GSPEC: Spec, DB: Database + 'a, const INSPECT: bool> Host
     for EVMImpl<'a, GSPEC, DB, INSPECT>
 {
-    async fn balance(&mut self, address: B160) -> Option<(U256, bool)> {
-        let db = &mut self.data.db;
-        let journal = &mut self.data.journaled_state;
-        let error = &mut self.data.error;
-        journal
-            .load_account(address, db)
-            .await
-            .map_err(|e| *error = Some(e))
-            .ok()
-            .map(|(acc, is_cold)| (acc.info.balance, is_cold))
-    }
-
-    async fn code(&mut self, address: B160) -> Option<(Bytecode, bool)> {
-        let journal = &mut self.data.journaled_state;
-        let db = &mut self.data.db;
-        let error = &mut self.data.error;
-
-        let (acc, is_cold) = journal
-            .load_code(address, db)
-            .await
-            .map_err(|e| *error = Some(e))
-            .ok()?;
-        Some((acc.info.code.clone().unwrap(), is_cold))
-    }
-
-    /// Get code hash of address.
-    async fn code_hash(&mut self, address: B160) -> Option<(B256, bool)> {
-        let journal = &mut self.data.journaled_state;
-        let db = &mut self.data.db;
-        let error = &mut self.data.error;
-
-        let (acc, is_cold) = journal
-            .load_code(address, db)
-            .await
-            .map_err(|e| *error = Some(e))
-            .ok()?;
-        //asume that all precompiles have some balance
-        let is_precompile = self.precompiles.contains(&address);
-        if is_precompile && self.data.env.cfg.perf_all_precompiles_have_balance {
-            return Some((KECCAK_EMPTY, is_cold));
-        }
-        if acc.is_empty() {
-            // TODO check this for pre tangerine fork
-            return Some((B256::zero(), is_cold));
-        }
-
-        Some((acc.info.code_hash, is_cold))
-    }
-
     fn step(&mut self, interp: &mut Interpreter, is_static: bool) -> InstructionResult {
         self.inspector.step(interp, &mut self.data, is_static)
     }
@@ -997,6 +950,55 @@ impl<'a, GSPEC: Spec, DB: Database + 'a, const INSPECT: bool> Host
             .await
             .map_err(|e| self.data.error = Some(e))
             .ok()
+    }
+
+    async fn balance(&mut self, address: B160) -> Option<(U256, bool)> {
+        let journal = &mut self.data.journaled_state;
+        //let db = &mut self.data.db;
+        let error = &mut self.data.error;
+        journal
+            .load_account(address, self.data.db)
+            .await
+            .map_err(|e| *error = Some(e))
+            .ok()
+            .map(|(acc, is_cold)| (acc.info.balance, is_cold))
+    }
+
+    async fn code(&mut self, address: B160) -> Option<(Bytecode, bool)> {
+        let journal = &mut self.data.journaled_state;
+        //let db = &mut self.data.db;
+        let error = &mut self.data.error;
+
+        let (acc, is_cold) = journal
+            .load_code(address, self.data.db)
+            .await
+            .map_err(|e| *error = Some(e))
+            .ok()?;
+        Some((acc.info.code.clone().unwrap(), is_cold))
+    }
+
+    /// Get code hash of address.
+    async fn code_hash(&mut self, address: B160) -> Option<(B256, bool)> {
+        let journal = &mut self.data.journaled_state;
+        //let db = &mut self.data.db;
+        let error = &mut self.data.error;
+
+        let (acc, is_cold) = journal
+            .load_code(address, self.data.db)
+            .await
+            .map_err(|e| *error = Some(e))
+            .ok()?;
+        //asume that all precompiles have some balance
+        let is_precompile = self.precompiles.contains(&address);
+        if is_precompile && self.data.env.cfg.perf_all_precompiles_have_balance {
+            return Some((KECCAK_EMPTY, is_cold));
+        }
+        if acc.is_empty() {
+            // TODO check this for pre tangerine fork
+            return Some((B256::zero(), is_cold));
+        }
+
+        Some((acc.info.code_hash, is_cold))
     }
 
     async fn sload(&mut self, address: B160, index: U256) -> Option<(U256, bool)> {

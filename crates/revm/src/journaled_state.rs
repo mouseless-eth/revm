@@ -402,10 +402,10 @@ impl JournaledState {
     }
 
     /// load account into memory. return if it is cold or hot accessed
-    pub async fn load_account<DB: Database>(
+    pub async fn load_account<'a, DB: Database + 'a>(
         &mut self,
         address: B160,
-        db: &mut DB,
+        db: &'a mut DB,
     ) -> Result<(&mut Account, bool), DB::Error> {
         Ok(match self.state.entry(address) {
             Entry::Occupied(entry) => (entry.into_mut(), false),

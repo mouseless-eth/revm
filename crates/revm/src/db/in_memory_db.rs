@@ -426,7 +426,7 @@ mod tests {
 
         let (key, value) = (U256::from(123), U256::from(456));
         let mut new_state = CacheDB::new(init_state);
-        let _ = new_state.insert_account_storage(account, key, value);
+        let _ = new_state.insert_account_storage(account, key, value).await;
 
         assert_eq!(
             new_state.basic(account).await.unwrap().unwrap().nonce,
