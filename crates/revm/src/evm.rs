@@ -44,17 +44,17 @@ impl<DB> Default for EVM<DB> {
 
 impl<DB: Database + DatabaseCommit> EVM<DB> {
     /// Execute transaction and apply result to database
-    pub fn transact_commit(&mut self) -> Result<ExecutionResult, EVMError<DB::Error>> {
-        let ResultAndState { result, state } = self.transact()?;
+    pub async fn transact_commit(&mut self) -> Result<ExecutionResult, EVMError<DB::Error>> {
+        let ResultAndState { result, state } = self.transact().await?;
         self.db.as_mut().unwrap().commit(state);
         Ok(result)
     }
     /// Inspect transaction and commit changes to database.
-    pub fn inspect_commit<INSP: Inspector<DB::Error>>(
+    pub async fn inspect_commit<INSP: Inspector<DB::Error>>(
         &mut self,
         inspector: INSP,
     ) -> Result<ExecutionResult, EVMError<DB::Error>> {
-        let ResultAndState { result, state } = self.inspect(inspector)?;
+        let ResultAndState { result, state } = self.inspect(inspector).await?;
         self.db.as_mut().unwrap().commit(state);
         Ok(result)
     }
@@ -62,10 +62,12 @@ impl<DB: Database + DatabaseCommit> EVM<DB> {
 
 impl<DB: Database> EVM<DB> {
     /// Execute transaction without writing to DB, return change state.
-    pub fn transact(&mut self) -> EVMResult<DB::Error> {
+    pub async fn transact(&mut self) -> EVMResult<DB::Error> {
         if let Some(db) = self.db.as_mut() {
             let mut noop = NoOpInspector {};
-            let out = evm_inner::<DB, false>(&mut self.env, db, &mut noop).transact();
+            let out = evm_inner::<DB, false>(&mut self.env, db, &mut noop)
+                .transact()
+                .await;
             out
         } else {
             panic!("Database needs to be set");
@@ -73,12 +75,14 @@ impl<DB: Database> EVM<DB> {
     }
 
     /// Execute transaction with given inspector, without wring to DB. Return change state.
-    pub fn inspect<INSP: Inspector<DB::Error>>(
+    pub async fn inspect<INSP: Inspector<DB::Error>>(
         &mut self,
         mut inspector: INSP,
     ) -> EVMResult<DB::Error> {
         if let Some(db) = self.db.as_mut() {
-            evm_inner::<DB, true>(&mut self.env, db, &mut inspector).transact()
+            evm_inner::<DB, true>(&mut self.env, db, &mut inspector)
+                .transact()
+                .await
         } else {
             panic!("Database needs to be set");
         }
@@ -87,14 +91,15 @@ impl<DB: Database> EVM<DB> {
 
 impl<'a, DB: DatabaseRef> EVM<DB> {
     /// Execute transaction without writing to DB, return change state.
-    pub fn transact_ref(&self) -> EVMResult<DB::Error> {
+    pub async fn transact_ref(&self) -> EVMResult<DB::Error> {
         if let Some(db) = self.db.as_ref() {
             let mut noop = NoOpInspector {};
             let mut db = RefDBWrapper::new(db);
             let db = &mut db;
             let out =
                 evm_inner::<RefDBWrapper<DB::Error>, false>(&mut self.env.clone(), db, &mut noop)
-                    .transact();
+                    .transact()
+                    .await;
             out
         } else {
             panic!("Database needs to be set");
@@ -102,7 +107,7 @@ impl<'a, DB: DatabaseRef> EVM<DB> {
     }
 
     /// Execute transaction with given inspector, without wring to DB. Return change state.
-    pub fn inspect_ref<INSP: Inspector<DB::Error>>(
+    pub async fn inspect_ref<INSP: Inspector<DB::Error>>(
         &'a self,
         mut inspector: INSP,
     ) -> EVMResult<DB::Error> {
@@ -114,7 +119,8 @@ impl<'a, DB: DatabaseRef> EVM<DB> {
                 db,
                 &mut inspector,
             )
-            .transact();
+            .transact()
+            .await;
             out
         } else {
             panic!("Database needs to be set");

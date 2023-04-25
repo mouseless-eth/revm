@@ -25,6 +25,7 @@ impl DummyHost {
     }
 }
 
+#[async_trait::async_trait]
 impl Host for DummyHost {
     fn step(&mut self, _interp: &mut Interpreter, _is_static: bool) -> InstructionResult {
         InstructionResult::Continue
@@ -43,7 +44,7 @@ impl Host for DummyHost {
         &mut self.env
     }
 
-    fn load_account(&mut self, _address: B160) -> Option<(bool, bool)> {
+    async fn load_account(&mut self, _address: B160) -> Option<(bool, bool)> {
         Some((true, true))
     }
 
@@ -51,19 +52,19 @@ impl Host for DummyHost {
         Some(B256::zero())
     }
 
-    fn balance(&mut self, _address: B160) -> Option<(U256, bool)> {
+    async fn balance(&mut self, _address: B160) -> Option<(U256, bool)> {
         Some((U256::ZERO, false))
     }
 
-    fn code(&mut self, _address: B160) -> Option<(Bytecode, bool)> {
+    async fn code(&mut self, _address: B160) -> Option<(Bytecode, bool)> {
         Some((Bytecode::default(), false))
     }
 
-    fn code_hash(&mut self, __address: B160) -> Option<(B256, bool)> {
+    async fn code_hash(&mut self, __address: B160) -> Option<(B256, bool)> {
         Some((KECCAK_EMPTY, false))
     }
 
-    fn sload(&mut self, __address: B160, index: U256) -> Option<(U256, bool)> {
+    async fn sload(&mut self, __address: B160, index: U256) -> Option<(U256, bool)> {
         match self.storage.entry(index) {
             Entry::Occupied(entry) => Some((*entry.get(), false)),
             Entry::Vacant(entry) => {
@@ -73,7 +74,7 @@ impl Host for DummyHost {
         }
     }
 
-    fn sstore(
+    async fn sstore(
         &mut self,
         _address: B160,
         index: U256,
@@ -98,18 +99,18 @@ impl Host for DummyHost {
         })
     }
 
-    fn selfdestruct(&mut self, _address: B160, _target: B160) -> Option<SelfDestructResult> {
+    async fn selfdestruct(&mut self, _address: B160, _target: B160) -> Option<SelfDestructResult> {
         panic!("Selfdestruct is not supported for this host")
     }
 
-    fn create(
+    async fn create(
         &mut self,
         _inputs: &mut CreateInputs,
     ) -> (InstructionResult, Option<B160>, Gas, Bytes) {
         panic!("Create is not supported for this host")
     }
 
-    fn call(&mut self, _input: &mut CallInputs) -> (InstructionResult, Gas, Bytes) {
+    async fn call(&mut self, _input: &mut CallInputs) -> (InstructionResult, Gas, Bytes) {
         panic!("Call is not supported for this host")
     }
 }

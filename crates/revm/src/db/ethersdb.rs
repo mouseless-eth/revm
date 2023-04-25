@@ -52,13 +52,14 @@ where
     }
 }
 
+#[async_trait::async_trait]
 impl<M> Database for EthersDB<M>
 where
     M: Middleware,
 {
     type Error = ();
 
-    fn basic(&mut self, address: B160) -> Result<Option<AccountInfo>, Self::Error> {
+    async fn basic(&mut self, address: B160) -> Result<Option<AccountInfo>, Self::Error> {
         let add = eH160::from(address.0);
 
         let f = async {
@@ -90,7 +91,7 @@ where
         // not needed because we already load code with basic info
     }
 
-    fn storage(&mut self, address: B160, index: U256) -> Result<U256, Self::Error> {
+    async fn storage(&mut self, address: B160, index: U256) -> Result<U256, Self::Error> {
         let add = eH160::from(address.0);
         let index = H256::from(index.to_be_bytes());
         let f = async {
@@ -130,8 +131,8 @@ mod tests {
     use ethers_core::types::U256 as eU256;
     use ethers_providers::{Http, Provider};
 
-    #[test]
-    fn can_get_basic() {
+    #[tokio::test]
+    async fn can_get_basic() {
         let client = Provider::<Http>::try_from(
             "https://mainnet.infura.io/v3/c60b0bb42f8a4c6481ecd229eddaca27",
         )
@@ -150,14 +151,14 @@ mod tests {
             .unwrap();
         let address = address.as_fixed_bytes().into();
 
-        let acc_info = ethersdb.basic(address).unwrap().unwrap();
+        let acc_info = ethersdb.basic(address).await.unwrap().unwrap();
 
         // check if not empty
         assert!(acc_info.exists());
     }
 
-    #[test]
-    fn can_get_storage() {
+    #[tokio::test]
+    async fn can_get_storage() {
         let client = Provider::<Http>::try_from(
             "https://mainnet.infura.io/v3/c60b0bb42f8a4c6481ecd229eddaca27",
         )
@@ -178,7 +179,7 @@ mod tests {
 
         // select test index
         let index = U256::from(5);
-        let storage = ethersdb.storage(address, index).unwrap();
+        let storage = ethersdb.storage(address, index).await.unwrap();
 
         // https://etherscan.io/address/0x0d4a11d5EEaaC28EC3F61d100daF4d40471f1852#readContract
         // storage[5] -> factory: address

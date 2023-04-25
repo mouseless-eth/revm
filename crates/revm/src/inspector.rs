@@ -17,12 +17,12 @@ pub mod inspectors {
     pub use super::customprinter::CustomPrintTracer;
     pub use super::gas::GasInspector;
     pub use super::noop::NoOpInspector;
-    #[cfg(all(feature = "std", feature = "serde"))]
-    pub use super::tracer_eip3155::TracerEip3155;
+    //#[cfg(all(feature = "std", feature = "serde"))]
+    //pub use super::tracer_eip3155::TracerEip3155;
 }
 
 #[auto_impl(&mut, Box)]
-pub trait Inspector<E> {
+pub trait Inspector<E>: Send + Sync {
     /// Called Before the interpreter is initialized.
     ///
     /// If anything other than [InstructionResult::Continue] is returned then execution of the interpreter is
