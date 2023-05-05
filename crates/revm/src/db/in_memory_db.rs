@@ -453,7 +453,9 @@ mod tests {
         let _ = init_state.insert_account_storage(account, key0, value0);
 
         let mut new_state = CacheDB::new(init_state);
-        let _ = new_state.replace_account_storage(account, [(key1, value1)].into());
+        let _ = new_state
+            .replace_account_storage(account, [(key1, value1)].into())
+            .await;
 
         assert_eq!(
             new_state.basic(account).await.unwrap().unwrap().nonce,

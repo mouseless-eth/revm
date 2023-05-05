@@ -208,7 +208,7 @@ impl<'a, GSPEC: Spec, DB: Database, const INSPECT: bool> Transact<DB::Error>
 
         // record all as cost. Gas limit here is reduced by init cost of bytes and access lists.
         let gas_limit = gas.remaining();
-        if crate::USE_GAS {
+        if self.env().cfg.measure_gas {
             gas.record_cost(gas_limit);
         }
 
@@ -269,7 +269,7 @@ impl<'a, GSPEC: Spec, DB: Database, const INSPECT: bool> Transact<DB::Error>
             }
         };
 
-        if crate::USE_GAS {
+        if self.env().cfg.measure_gas {
             match exit_reason {
                 return_ok!() => {
                     gas.erase_cost(ret_gas.remaining());
@@ -343,7 +343,7 @@ impl<'a, GSPEC: Spec, DB: Database, const INSPECT: bool> EVMImpl<'a, GSPEC, DB, 
         gas: &Gas,
     ) -> (HashMap<B160, Account>, Vec<Log>, u64, u64) {
         let coinbase = self.data.env.block.coinbase;
-        let (gas_used, gas_refunded) = if crate::USE_GAS {
+        let (gas_used, gas_refunded) = if self.env().cfg.measure_gas {
             let effective_gas_price = self.data.env.effective_gas_price();
             let basefee = self.data.env.block.basefee;
 
@@ -437,7 +437,7 @@ impl<'a, GSPEC: Spec, DB: Database, const INSPECT: bool> EVMImpl<'a, GSPEC, DB, 
             if initcode_len > MAX_INITCODE_SIZE {
                 return Err(InvalidTransaction::CreateInitcodeSizeLimit.into());
             }
-            if crate::USE_GAS {
+            if self.data.env.cfg.measure_gas {
                 gas::initcode_cost(initcode_len as u64)
             } else {
                 0
@@ -446,7 +446,7 @@ impl<'a, GSPEC: Spec, DB: Database, const INSPECT: bool> EVMImpl<'a, GSPEC, DB, 
             0
         };
 
-        if crate::USE_GAS {
+        if self.data.env.cfg.measure_gas {
             let zero_data_len = input.iter().filter(|v| **v == 0).count() as u64;
             let non_zero_data_len = input.len() as u64 - zero_data_len;
             let (accessed_accounts, accessed_slots) = {
@@ -515,7 +515,7 @@ impl<'a, GSPEC: Spec, DB: Database, const INSPECT: bool> EVMImpl<'a, GSPEC, DB, 
         }
 
         let gas = Gas::new(inputs.gas_limit);
-        self.load_account(inputs.caller);
+        self.load_account(inputs.caller).await;
 
         // Check depth of calls
         if self.data.journaled_state.depth() > CALL_STACK_LIMIT {
@@ -567,7 +567,7 @@ impl<'a, GSPEC: Spec, DB: Database, const INSPECT: bool> EVMImpl<'a, GSPEC, DB, 
         let ret = Some(created_address);
 
         // Load account so that it will be hot
-        self.load_account(created_address);
+        self.load_account(created_address).await;
 
         // Enter subroutine
         let checkpoint = self.data.journaled_state.checkpoint();
@@ -648,16 +648,17 @@ impl<'a, GSPEC: Spec, DB: Database, const INSPECT: bool> EVMImpl<'a, GSPEC, DB, 
         );
 
         #[cfg(not(feature = "memory_limit"))]
-        let mut interpreter = Interpreter::new(contract, gas.limit(), false);
+        let mut interpreter =
+            Interpreter::new(contract, gas.limit(), false, self.env().cfg.measure_gas);
 
         if INSPECT {
             self.inspector
                 .initialize_interp(&mut interpreter, &mut self.data, false);
         }
         let exit_reason = if INSPECT {
-            interpreter.run_inspect::<Self, GSPEC>(self)
+            interpreter.run_inspect::<Self, GSPEC>(self).await
         } else {
-            interpreter.run::<Self, GSPEC>(self)
+            interpreter.run::<Self, GSPEC>(self).await
         };
         // Host error if present on execution\
         let (ret, address, gas, out) = match exit_reason {
@@ -697,7 +698,7 @@ impl<'a, GSPEC: Spec, DB: Database, const INSPECT: bool> EVMImpl<'a, GSPEC, DB, 
                         bytes,
                     );
                 }
-                if crate::USE_GAS {
+                if self.env().cfg.measure_gas {
                     let gas_for_code = bytes.len() as u64 * gas::CODEDEPOSIT;
                     if !interpreter.gas.record_cost(gas_for_code) {
                         // record code deposit gas cost and check if we are out of gas.
@@ -810,7 +811,7 @@ impl<'a, GSPEC: Spec, DB: Database, const INSPECT: bool> EVMImpl<'a, GSPEC, DB, 
 
         // Touch address. For "EIP-158 State Clear", this will erase empty accounts.
         if inputs.transfer.value == U256::ZERO {
-            self.load_account(inputs.context.address);
+            self.load_account(inputs.context.address).await;
             self.data.journaled_state.touch(&inputs.context.address);
         }
 
@@ -850,7 +851,7 @@ impl<'a, GSPEC: Spec, DB: Database, const INSPECT: bool> EVMImpl<'a, GSPEC, DB, 
             };
             match out {
                 Ok((gas_used, data)) => {
-                    if !crate::USE_GAS || gas.record_cost(gas_used) {
+                    if !self.env().cfg.measure_gas || gas.record_cost(gas_used) {
                         self.data.journaled_state.checkpoint_commit();
                         (InstructionResult::Return, gas, Bytes::from(data))
                     } else {
@@ -882,7 +883,12 @@ impl<'a, GSPEC: Spec, DB: Database, const INSPECT: bool> EVMImpl<'a, GSPEC, DB, 
             );
 
             #[cfg(not(feature = "memory_limit"))]
-            let mut interpreter = Interpreter::new(contract, gas.limit(), inputs.is_static);
+            let mut interpreter = Interpreter::new(
+                contract,
+                gas.limit(),
+                inputs.is_static,
+                self.env().cfg.measure_gas,
+            );
 
             if INSPECT {
                 // create is always no static call.
@@ -890,9 +896,9 @@ impl<'a, GSPEC: Spec, DB: Database, const INSPECT: bool> EVMImpl<'a, GSPEC, DB, 
                     .initialize_interp(&mut interpreter, &mut self.data, false);
             }
             let exit_reason = if INSPECT {
-                interpreter.run_inspect::<Self, GSPEC>(self)
+                interpreter.run_inspect::<Self, GSPEC>(self).await
             } else {
-                interpreter.run::<Self, GSPEC>(self)
+                interpreter.run::<Self, GSPEC>(self).await
             };
 
             if matches!(exit_reason, return_ok!()) {

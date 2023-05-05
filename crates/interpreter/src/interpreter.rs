@@ -24,6 +24,8 @@ pub const MAX_CODE_SIZE: usize = 0x6000;
 /// EIP-3860: Limit and meter initcode
 pub const MAX_INITCODE_SIZE: usize = 2 * MAX_CODE_SIZE;
 
+unsafe impl Send for Interpreter {}
+
 pub struct Interpreter {
     /// Instruction pointer.
     pub instruction_pointer: *const u8,
@@ -46,6 +48,8 @@ pub struct Interpreter {
     /// Memory limit. See [`crate::CfgEnv`].
     #[cfg(feature = "memory_limit")]
     pub memory_limit: u64,
+    // should Interpreter measure gas
+    pub measure_gas: bool,
 }
 
 impl Interpreter {
@@ -55,7 +59,7 @@ impl Interpreter {
     }
 
     /// Create new interpreter
-    pub fn new(contract: Contract, gas_limit: u64, is_static: bool) -> Self {
+    pub fn new(contract: Contract, gas_limit: u64, is_static: bool, measure_gas: bool) -> Self {
         #[cfg(not(feature = "memory_limit"))]
         {
             Self {
@@ -68,6 +72,7 @@ impl Interpreter {
                 instruction_result: InstructionResult::Continue,
                 is_static,
                 gas: Gas::new(gas_limit),
+                measure_gas,
             }
         }
 
@@ -127,33 +132,33 @@ impl Interpreter {
 
     /// Execute next instruction
     #[inline(always)]
-    pub fn step<H: Host, SPEC: Spec>(&mut self, host: &mut H) {
+    pub async fn step<H: Host, SPEC: Spec>(&mut self, host: &mut H) {
         // step.
         let opcode = unsafe { *self.instruction_pointer };
         // Safety: In analysis we are doing padding of bytecode so that we are sure that last
         // byte instruction is STOP so we are safe to just increment program_counter bcs on last instruction
         // it will do noop and just stop execution of this contract
         self.instruction_pointer = unsafe { self.instruction_pointer.offset(1) };
-        eval::<H, SPEC>(opcode, self, host);
+        eval::<H, SPEC>(opcode, self, host).await;
     }
 
     /// loop steps until we are finished with execution
-    pub fn run<H: Host, SPEC: Spec>(&mut self, host: &mut H) -> InstructionResult {
+    pub async fn run<H: Host, SPEC: Spec>(&mut self, host: &mut H) -> InstructionResult {
         while self.instruction_result == InstructionResult::Continue {
-            self.step::<H, SPEC>(host)
+            self.step::<H, SPEC>(host).await
         }
         self.instruction_result
     }
 
     /// loop steps until we are finished with execution
-    pub fn run_inspect<H: Host, SPEC: Spec>(&mut self, host: &mut H) -> InstructionResult {
+    pub async fn run_inspect<H: Host, SPEC: Spec>(&mut self, host: &mut H) -> InstructionResult {
         while self.instruction_result == InstructionResult::Continue {
             // step
             let ret = host.step(self, self.is_static);
             if ret != InstructionResult::Continue {
                 return ret;
             }
-            self.step::<H, SPEC>(host);
+            self.step::<H, SPEC>(host).await;
 
             // step ends
             let ret = host.step_end(self, self.is_static, self.instruction_result);

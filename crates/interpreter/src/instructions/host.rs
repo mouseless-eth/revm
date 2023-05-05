@@ -305,14 +305,14 @@ pub async fn create<const IS_CREATE2: bool, SPEC: Spec>(
     match return_reason {
         return_ok!() => {
             push_b256!(interpreter, address.unwrap_or_default().into());
-            if crate::USE_GAS {
+            if interpreter.measure_gas {
                 interpreter.gas.erase_cost(gas.remaining());
                 interpreter.gas.record_refund(gas.refunded());
             }
         }
         return_revert!() => {
             push_b256!(interpreter, B256::zero());
-            if crate::USE_GAS {
+            if interpreter.measure_gas {
                 interpreter.gas.erase_cost(gas.remaining());
             }
         }
@@ -325,20 +325,20 @@ pub async fn create<const IS_CREATE2: bool, SPEC: Spec>(
     }
 }
 
-pub fn call<SPEC: Spec>(interpreter: &mut Interpreter, host: &mut dyn Host) {
-    call_inner::<SPEC>(interpreter, CallScheme::Call, host);
+pub async fn call<SPEC: Spec>(interpreter: &mut Interpreter, host: &mut dyn Host) {
+    call_inner::<SPEC>(interpreter, CallScheme::Call, host).await;
 }
 
-pub fn call_code<SPEC: Spec>(interpreter: &mut Interpreter, host: &mut dyn Host) {
-    call_inner::<SPEC>(interpreter, CallScheme::CallCode, host);
+pub async fn call_code<SPEC: Spec>(interpreter: &mut Interpreter, host: &mut dyn Host) {
+    call_inner::<SPEC>(interpreter, CallScheme::CallCode, host).await;
 }
 
-pub fn delegate_call<SPEC: Spec>(interpreter: &mut Interpreter, host: &mut dyn Host) {
-    call_inner::<SPEC>(interpreter, CallScheme::DelegateCall, host);
+pub async fn delegate_call<SPEC: Spec>(interpreter: &mut Interpreter, host: &mut dyn Host) {
+    call_inner::<SPEC>(interpreter, CallScheme::DelegateCall, host).await;
 }
 
-pub fn static_call<SPEC: Spec>(interpreter: &mut Interpreter, host: &mut dyn Host) {
-    call_inner::<SPEC>(interpreter, CallScheme::StaticCall, host);
+pub async fn static_call<SPEC: Spec>(interpreter: &mut Interpreter, host: &mut dyn Host) {
+    call_inner::<SPEC>(interpreter, CallScheme::StaticCall, host).await;
 }
 
 pub async fn call_inner<SPEC: Spec>(
@@ -499,7 +499,7 @@ pub async fn call_inner<SPEC: Spec>(
     match reason {
         return_ok!() => {
             // return unspend gas.
-            if crate::USE_GAS {
+            if interpreter.measure_gas {
                 interpreter.gas.erase_cost(gas.remaining());
                 interpreter.gas.record_refund(gas.refunded());
             }
@@ -509,7 +509,7 @@ pub async fn call_inner<SPEC: Spec>(
             push!(interpreter, U256::from(1));
         }
         return_revert!() => {
-            if crate::USE_GAS {
+            if interpreter.measure_gas {
                 interpreter.gas.erase_cost(gas.remaining());
             }
             interpreter

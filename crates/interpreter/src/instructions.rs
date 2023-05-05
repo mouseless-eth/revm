@@ -170,10 +170,10 @@ pub async fn eval<H: Host, S: Spec>(opcode: u8, interp: &mut Interpreter, host: 
         opcode::SELFDESTRUCT => host::selfdestruct::<S>(interp, host).await,
         opcode::CREATE => host::create::<false, S>(interp, host).await, //check
         opcode::CREATE2 => host::create::<true, S>(interp, host).await, //check
-        opcode::CALL => host::call::<S>(interp, host),                  //check
-        opcode::CALLCODE => host::call_code::<S>(interp, host),         //check
-        opcode::DELEGATECALL => host::delegate_call::<S>(interp, host), //check
-        opcode::STATICCALL => host::static_call::<S>(interp, host),     //check
+        opcode::CALL => host::call::<S>(interp, host).await,            //check
+        opcode::CALLCODE => host::call_code::<S>(interp, host).await,   //check
+        opcode::DELEGATECALL => host::delegate_call::<S>(interp, host).await, //check
+        opcode::STATICCALL => host::static_call::<S>(interp, host).await, //check
         opcode::CHAINID => host_env::chainid::<S>(interp, host),
         _ => return_not_found(interp, host),
     }

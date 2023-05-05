@@ -10,7 +10,7 @@ pub use dummy_host::DummyHost;
 
 /// EVM context host.
 #[async_trait::async_trait]
-pub trait Host {
+pub trait Host: Send {
     fn step(&mut self, interpreter: &mut Interpreter, is_static: bool) -> InstructionResult;
     fn step_end(
         &mut self,
