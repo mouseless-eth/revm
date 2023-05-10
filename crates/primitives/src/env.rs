@@ -90,7 +90,7 @@ pub struct CfgEnv {
     /// If some it will effects EIP-170: Contract code size limit. Usefull to increase this because of tests.
     /// By default it is 0x6000 (~25kb).
     pub limit_contract_code_size: Option<usize>,
-    // should we measure gas used
+    /// should we measure gas used
     pub measure_gas: bool,
     /// A hard memory limit in bytes beyond which [Memory] cannot be resized.
     ///

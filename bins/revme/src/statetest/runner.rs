@@ -52,7 +52,7 @@ pub fn find_all_json_tests(path: &Path) -> Vec<PathBuf> {
         .collect::<Vec<PathBuf>>()
 }
 
-pub fn execute_test_suit(
+pub async fn execute_test_suit(
     path: &Path,
     elapsed: &Arc<Mutex<Duration>>,
     trace: bool,
@@ -164,7 +164,7 @@ pub fn execute_test_suit(
             database.insert_account_info(*address, acc_info);
             // insert storage:
             for (&slot, &value) in info.storage.iter() {
-                let _ = database.insert_account_storage(*address, slot, value);
+                let _ = database.insert_account_storage(*address, slot, value).await;
             }
         }
         let mut env = Env::default();
@@ -256,9 +256,14 @@ pub fn execute_test_suit(
                 let timer = Instant::now();
 
                 let exec_result = if trace {
-                    evm.inspect_commit(TracerEip3155::new(Box::new(stdout()), false, false))
+                    evm.inspect_commit(TracerEip3155::new(
+                        Mutex::new(Box::new(stdout())),
+                        false,
+                        false,
+                    ))
+                    .await
                 } else {
-                    evm.transact_commit()
+                    evm.transact_commit().await
                 };
                 let timer = timer.elapsed();
 
@@ -292,8 +297,13 @@ pub fn execute_test_suit(
                     );
                     let mut database_cloned = database.clone();
                     evm.database(&mut database_cloned);
-                    let _ =
-                        evm.inspect_commit(TracerEip3155::new(Box::new(stdout()), false, false));
+                    let _ = evm
+                        .inspect_commit(TracerEip3155::new(
+                            Mutex::new(Box::new(stdout())),
+                            false,
+                            false,
+                        ))
+                        .await;
                     let db = evm.db().unwrap();
                     println!("{path:?} UNIT_TEST:{name}\n");
                     match &exec_result {
@@ -334,7 +344,7 @@ pub fn execute_test_suit(
     Ok(())
 }
 
-pub fn run(
+pub async fn run(
     test_files: Vec<PathBuf>,
     mut single_thread: bool,
     trace: bool,
@@ -345,47 +355,44 @@ pub fn run(
 
     let endjob = Arc::new(AtomicBool::new(false));
     let console_bar = Arc::new(ProgressBar::new(test_files.len() as u64));
-    let mut joins: Vec<std::thread::JoinHandle<Result<(), TestError>>> = Vec::new();
     let queue = Arc::new(Mutex::new((0, test_files)));
     let elapsed = Arc::new(Mutex::new(std::time::Duration::ZERO));
     let num_threads = if single_thread { 1 } else { 10 };
+    let mut joins = Vec::new();
     for _ in 0..num_threads {
         let queue = queue.clone();
         let endjob = endjob.clone();
         let console_bar = console_bar.clone();
         let elapsed = elapsed.clone();
 
-        joins.push(
-            std::thread::Builder::new()
-                .stack_size(50 * 1024 * 1024)
-                .spawn(move || loop {
-                    let (index, test_path) = {
-                        let mut queue = queue.lock().unwrap();
-                        if queue.1.len() <= queue.0 {
-                            return Ok(());
-                        }
-                        let test_path = queue.1[queue.0].clone();
-                        queue.0 += 1;
-                        (queue.0 - 1, test_path)
-                    };
-                    if endjob.load(Ordering::SeqCst) {
+        let join_handle = tokio::task::spawn(async move {
+            loop {
+                let (index, test_path) = {
+                    let mut queue = queue.lock().unwrap();
+                    if queue.1.len() <= queue.0 {
                         return Ok(());
                     }
-                    //println!("Test:{:?}\n",test_path);
-                    if let Err(err) = execute_test_suit(&test_path, &elapsed, trace) {
-                        endjob.store(true, Ordering::SeqCst);
-                        println!("Test[{index}] named:\n{test_path:?} failed: {err}\n");
-                        return Err(err);
-                    }
+                    let test_path = queue.1[queue.0].clone();
+                    queue.0 += 1;
+                    (queue.0 - 1, test_path)
+                };
+                if endjob.load(Ordering::SeqCst) {
+                    return Ok(());
+                }
+                if let Err(err) = execute_test_suit(&test_path, &elapsed, trace).await {
+                    endjob.store(true, Ordering::SeqCst);
+                    println!("Test[{index}] named:\n{test_path:?} failed: {err}\n");
+                    return Err(err);
+                }
 
-                    //println!("TestDone:{:?}\n",test_path);
-                    console_bar.inc(1);
-                })
-                .unwrap(),
-        );
+                console_bar.inc(1);
+            }
+        });
+        joins.push(join_handle);
     }
+
     for handler in joins {
-        handler.join().map_err(|_| TestError::SystemError)??;
+        handler.await.map_err(|_| TestError::SystemError)??;
     }
     console_bar.finish();
     println!("Finished execution. Time:{:?}", elapsed.lock().unwrap());

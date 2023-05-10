@@ -20,9 +20,9 @@ pub enum Error {
 }
 
 impl MainCmd {
-    pub fn run(&self) -> Result<(), Error> {
+    pub async fn run(&self) -> Result<(), Error> {
         match self {
-            Self::Statetest(cmd) => cmd.run().map_err(Error::Statetest),
+            Self::Statetest(cmd) => cmd.run().await.map_err(Error::Statetest),
             _ => Ok(()),
         }
     }

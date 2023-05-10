@@ -6,7 +6,8 @@ use cmd::Error;
 use structopt::StructOpt;
 mod cli_env;
 
-pub fn main() -> Result<(), Error> {
+#[tokio::main]
+pub async fn main() -> Result<(), Error> {
     let cmd = cmd::MainCmd::from_args();
-    cmd.run()
+    cmd.run().await
 }
