@@ -33,7 +33,7 @@ pub struct EVMImpl<'a, GSPEC: Spec, DB: Database, const INSPECT: bool> {
 }
 
 #[async_trait::async_trait]
-pub trait Transact<DBError> {
+pub trait Transact<DBError>: Send {
     /// Do transaction.
     /// InstructionResult InstructionResult, Output for call or Address if we are creating
     /// contract, gas spend, gas refunded, State that needs to be applied.
