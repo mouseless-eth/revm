@@ -79,12 +79,13 @@ impl<ExtDB: DatabaseRef> CacheDB<ExtDB> {
     /// Returns the account for the given address.
     ///
     /// If the account was not found in the cache, it will be loaded from the underlying database.
-    pub fn load_account(&mut self, address: B160) -> Result<&mut DbAccount, ExtDB::Error> {
+    pub async fn load_account(&mut self, address: B160) -> Result<&mut DbAccount, ExtDB::Error> {
         let db = &self.db;
         match self.accounts.entry(address) {
             Entry::Occupied(entry) => Ok(entry.into_mut()),
             Entry::Vacant(entry) => Ok(entry.insert(
-                db.basic(address)?
+                db.basic(address)
+                    .await?
                     .map(|info| DbAccount {
                         info,
                         ..Default::default()
@@ -95,24 +96,24 @@ impl<ExtDB: DatabaseRef> CacheDB<ExtDB> {
     }
 
     /// insert account storage without overriding account info
-    pub fn insert_account_storage(
+    pub async fn insert_account_storage(
         &mut self,
         address: B160,
         slot: U256,
         value: U256,
     ) -> Result<(), ExtDB::Error> {
-        let account = self.load_account(address)?;
+        let account = self.load_account(address).await?;
         account.storage.insert(slot, value);
         Ok(())
     }
 
     /// replace account storage without overriding account info
-    pub fn replace_account_storage(
+    pub async fn replace_account_storage(
         &mut self,
         address: B160,
         storage: HashMap<U256, U256>,
     ) -> Result<(), ExtDB::Error> {
-        let account = self.load_account(address)?;
+        let account = self.load_account(address).await?;
         account.account_state = AccountState::StorageCleared;
         account.storage = storage.into_iter().collect();
         Ok(())
@@ -157,15 +158,17 @@ impl<ExtDB: DatabaseRef> DatabaseCommit for CacheDB<ExtDB> {
     }
 }
 
+#[async_trait::async_trait]
 impl<ExtDB: DatabaseRef> Database for CacheDB<ExtDB> {
     type Error = ExtDB::Error;
 
-    fn basic(&mut self, address: B160) -> Result<Option<AccountInfo>, Self::Error> {
+    async fn basic(&mut self, address: B160) -> Result<Option<AccountInfo>, Self::Error> {
         let basic = match self.accounts.entry(address) {
             Entry::Occupied(entry) => entry.into_mut(),
             Entry::Vacant(entry) => entry.insert(
                 self.db
-                    .basic(address)?
+                    .basic(address)
+                    .await?
                     .map(|info| DbAccount {
                         info,
                         ..Default::default()
@@ -189,7 +192,7 @@ impl<ExtDB: DatabaseRef> Database for CacheDB<ExtDB> {
     /// Get the value in an account's storage slot.
     ///
     /// It is assumed that account is already loaded.
-    fn storage(&mut self, address: B160, index: U256) -> Result<U256, Self::Error> {
+    async fn storage(&mut self, address: B160, index: U256) -> Result<U256, Self::Error> {
         match self.accounts.entry(address) {
             Entry::Occupied(mut acc_entry) => {
                 let acc_entry = acc_entry.get_mut();
@@ -202,7 +205,7 @@ impl<ExtDB: DatabaseRef> Database for CacheDB<ExtDB> {
                         ) {
                             Ok(U256::ZERO)
                         } else {
-                            let slot = self.db.storage(address, index)?;
+                            let slot = self.db.storage(address, index).await?;
                             entry.insert(slot);
                             Ok(slot)
                         }
@@ -211,9 +214,9 @@ impl<ExtDB: DatabaseRef> Database for CacheDB<ExtDB> {
             }
             Entry::Vacant(acc_entry) => {
                 // acc needs to be loaded for us to access slots.
-                let info = self.db.basic(address)?;
+                let info = self.db.basic(address).await?;
                 let (account, value) = if info.is_some() {
-                    let value = self.db.storage(address, index)?;
+                    let value = self.db.storage(address, index).await?;
                     let mut account: DbAccount = info.into();
                     account.storage.insert(index, value);
                     (account, value)
@@ -238,13 +241,14 @@ impl<ExtDB: DatabaseRef> Database for CacheDB<ExtDB> {
     }
 }
 
+#[async_trait::async_trait]
 impl<ExtDB: DatabaseRef> DatabaseRef for CacheDB<ExtDB> {
     type Error = ExtDB::Error;
 
-    fn basic(&self, address: B160) -> Result<Option<AccountInfo>, Self::Error> {
+    async fn basic(&self, address: B160) -> Result<Option<AccountInfo>, Self::Error> {
         match self.accounts.get(&address) {
             Some(acc) => Ok(acc.info()),
-            None => self.db.basic(address),
+            None => self.db.basic(address).await,
         }
     }
 
@@ -255,7 +259,7 @@ impl<ExtDB: DatabaseRef> DatabaseRef for CacheDB<ExtDB> {
         }
     }
 
-    fn storage(&self, address: B160, index: U256) -> Result<U256, Self::Error> {
+    async fn storage(&self, address: B160, index: U256) -> Result<U256, Self::Error> {
         match self.accounts.get(&address) {
             Some(acc_entry) => match acc_entry.storage.get(&index) {
                 Some(entry) => Ok(*entry),
@@ -266,11 +270,11 @@ impl<ExtDB: DatabaseRef> DatabaseRef for CacheDB<ExtDB> {
                     ) {
                         Ok(U256::ZERO)
                     } else {
-                        self.db.storage(address, index)
+                        self.db.storage(address, index).await
                     }
                 }
             },
-            None => self.db.storage(address, index),
+            None => self.db.storage(address, index).await,
         }
     }
 
@@ -357,10 +361,11 @@ impl AccountState {
 #[derive(Debug, Default, Clone)]
 pub struct EmptyDB();
 
+#[async_trait::async_trait]
 impl DatabaseRef for EmptyDB {
     type Error = Infallible;
     /// Get basic account information.
-    fn basic(&self, _address: B160) -> Result<Option<AccountInfo>, Self::Error> {
+    async fn basic(&self, _address: B160) -> Result<Option<AccountInfo>, Self::Error> {
         Ok(None)
     }
     /// Get account code by its hash
@@ -368,7 +373,7 @@ impl DatabaseRef for EmptyDB {
         Ok(Bytecode::new())
     }
     /// Get storage value of address at index.
-    fn storage(&self, _address: B160, _index: U256) -> Result<U256, Self::Error> {
+    async fn storage(&self, _address: B160, _index: U256) -> Result<U256, Self::Error> {
         Ok(U256::default())
     }
 
@@ -391,10 +396,11 @@ impl BenchmarkDB {
     }
 }
 
+#[async_trait::async_trait]
 impl Database for BenchmarkDB {
     type Error = Infallible;
     /// Get basic account information.
-    fn basic(&mut self, address: B160) -> Result<Option<AccountInfo>, Self::Error> {
+    async fn basic(&mut self, address: B160) -> Result<Option<AccountInfo>, Self::Error> {
         if address == B160::zero() {
             return Ok(Some(AccountInfo {
                 nonce: 1,
@@ -420,7 +426,7 @@ impl Database for BenchmarkDB {
     }
 
     /// Get storage value of address at index.
-    fn storage(&mut self, _address: B160, _index: U256) -> Result<U256, Self::Error> {
+    async fn storage(&mut self, _address: B160, _index: U256) -> Result<U256, Self::Error> {
         Ok(U256::default())
     }
 
@@ -435,8 +441,8 @@ mod tests {
     use super::{CacheDB, EmptyDB};
     use crate::primitives::{db::Database, AccountInfo, U256};
 
-    #[test]
-    pub fn test_insert_account_storage() {
+    #[tokio::test]
+    pub async fn test_insert_account_storage() {
         let account = 42.into();
         let nonce = 42;
         let mut init_state = CacheDB::new(EmptyDB::default());
@@ -450,14 +456,17 @@ mod tests {
 
         let (key, value) = (U256::from(123), U256::from(456));
         let mut new_state = CacheDB::new(init_state);
-        let _ = new_state.insert_account_storage(account, key, value);
+        let _ = new_state.insert_account_storage(account, key, value).await;
 
-        assert_eq!(new_state.basic(account).unwrap().unwrap().nonce, nonce);
-        assert_eq!(new_state.storage(account, key), Ok(value));
+        assert_eq!(
+            new_state.basic(account).await.unwrap().unwrap().nonce,
+            nonce
+        );
+        assert_eq!(new_state.storage(account, key).await, Ok(value));
     }
 
-    #[test]
-    pub fn test_replace_account_storage() {
+    #[tokio::test]
+    pub async fn test_replace_account_storage() {
         let account = 42.into();
         let nonce = 42;
         let mut init_state = CacheDB::new(EmptyDB::default());
@@ -471,13 +480,20 @@ mod tests {
 
         let (key0, value0) = (U256::from(123), U256::from(456));
         let (key1, value1) = (U256::from(789), U256::from(999));
-        let _ = init_state.insert_account_storage(account, key0, value0);
+        let _ = init_state
+            .insert_account_storage(account, key0, value0)
+            .await;
 
         let mut new_state = CacheDB::new(init_state);
-        let _ = new_state.replace_account_storage(account, [(key1, value1)].into());
+        let _ = new_state
+            .replace_account_storage(account, [(key1, value1)].into())
+            .await;
 
-        assert_eq!(new_state.basic(account).unwrap().unwrap().nonce, nonce);
-        assert_eq!(new_state.storage(account, key0), Ok(U256::ZERO));
-        assert_eq!(new_state.storage(account, key1), Ok(value1));
+        assert_eq!(
+            new_state.basic(account).await.unwrap().unwrap().nonce,
+            nonce
+        );
+        assert_eq!(new_state.storage(account, key0).await, Ok(U256::ZERO));
+        assert_eq!(new_state.storage(account, key1).await, Ok(value1));
     }
 }

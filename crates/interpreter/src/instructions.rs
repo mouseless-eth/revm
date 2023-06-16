@@ -27,7 +27,7 @@ pub fn return_not_found(interpreter: &mut Interpreter, _host: &mut dyn Host) {
 }
 
 #[inline(always)]
-pub fn eval<H: Host, S: Spec>(opcode: u8, interp: &mut Interpreter, host: &mut H) {
+pub async fn eval<H: Host, S: Spec>(opcode: u8, interp: &mut Interpreter, host: &mut H) {
     match opcode {
         opcode::STOP => return_stop(interp, host),
         opcode::ADD => arithmetic::wrapped_add(interp, host),
@@ -57,8 +57,8 @@ pub fn eval<H: Host, S: Spec>(opcode: u8, interp: &mut Interpreter, host: &mut H
         opcode::SAR => bitwise::sar::<S>(interp, host),
         opcode::SHA3 => system::sha3(interp, host),
         opcode::ADDRESS => system::address(interp, host),
-        opcode::BALANCE => host::balance::<S>(interp, host),
-        opcode::SELFBALANCE => host::selfbalance::<S>(interp, host),
+        opcode::BALANCE => host::balance::<S>(interp, host).await,
+        opcode::SELFBALANCE => host::selfbalance::<S>(interp, host).await,
         opcode::CODESIZE => system::codesize(interp, host),
         opcode::CODECOPY => system::codecopy(interp, host),
         opcode::CALLDATALOAD => system::calldataload(interp, host),
@@ -148,9 +148,9 @@ pub fn eval<H: Host, S: Spec>(opcode: u8, interp: &mut Interpreter, host: &mut H
         opcode::CALLER => system::caller(interp, host),
         opcode::CALLVALUE => system::callvalue(interp, host),
         opcode::GASPRICE => host_env::gasprice(interp, host),
-        opcode::EXTCODESIZE => host::extcodesize::<S>(interp, host),
-        opcode::EXTCODEHASH => host::extcodehash::<S>(interp, host),
-        opcode::EXTCODECOPY => host::extcodecopy::<S>(interp, host),
+        opcode::EXTCODESIZE => host::extcodesize::<S>(interp, host).await,
+        opcode::EXTCODEHASH => host::extcodehash::<S>(interp, host).await,
+        opcode::EXTCODECOPY => host::extcodecopy::<S>(interp, host).await,
         opcode::RETURNDATASIZE => system::returndatasize::<S>(interp, host),
         opcode::RETURNDATACOPY => system::returndatacopy::<S>(interp, host),
         opcode::BLOCKHASH => host::blockhash(interp, host),
@@ -159,21 +159,21 @@ pub fn eval<H: Host, S: Spec>(opcode: u8, interp: &mut Interpreter, host: &mut H
         opcode::NUMBER => host_env::number(interp, host),
         opcode::DIFFICULTY => host_env::difficulty::<H, S>(interp, host),
         opcode::GASLIMIT => host_env::gaslimit(interp, host),
-        opcode::SLOAD => host::sload::<S>(interp, host),
-        opcode::SSTORE => host::sstore::<S>(interp, host),
+        opcode::SLOAD => host::sload::<S>(interp, host).await,
+        opcode::SSTORE => host::sstore::<S>(interp, host).await,
         opcode::GAS => system::gas(interp, host),
         opcode::LOG0 => host::log::<0>(interp, host),
         opcode::LOG1 => host::log::<1>(interp, host),
         opcode::LOG2 => host::log::<2>(interp, host),
         opcode::LOG3 => host::log::<3>(interp, host),
         opcode::LOG4 => host::log::<4>(interp, host),
-        opcode::SELFDESTRUCT => host::selfdestruct::<S>(interp, host),
-        opcode::CREATE => host::create::<false, S>(interp, host), //check
-        opcode::CREATE2 => host::create::<true, S>(interp, host), //check
-        opcode::CALL => host::call::<S>(interp, host),            //check
-        opcode::CALLCODE => host::call_code::<S>(interp, host),   //check
-        opcode::DELEGATECALL => host::delegate_call::<S>(interp, host), //check
-        opcode::STATICCALL => host::static_call::<S>(interp, host), //check
+        opcode::SELFDESTRUCT => host::selfdestruct::<S>(interp, host).await,
+        opcode::CREATE => host::create::<false, S>(interp, host).await, //check
+        opcode::CREATE2 => host::create::<true, S>(interp, host).await, //check
+        opcode::CALL => host::call::<S>(interp, host).await,            //check
+        opcode::CALLCODE => host::call_code::<S>(interp, host).await,   //check
+        opcode::DELEGATECALL => host::delegate_call::<S>(interp, host).await, //check
+        opcode::STATICCALL => host::static_call::<S>(interp, host).await, //check
         opcode::CHAINID => host_env::chainid::<S>(interp, host),
         _ => return_not_found(interp, host),
     }

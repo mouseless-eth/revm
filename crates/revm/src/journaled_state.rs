@@ -4,7 +4,7 @@ use crate::primitives::{
     KECCAK_EMPTY, U256,
 };
 use alloc::{vec, vec::Vec};
-use core::mem::{self};
+use core::mem;
 use revm_interpreter::primitives::Spec;
 use revm_interpreter::primitives::SpecId::SPURIOUS_DRAGON;
 
@@ -183,7 +183,7 @@ impl JournaledState {
         Some(account.info.nonce)
     }
 
-    pub fn transfer<DB: Database>(
+    pub async fn transfer<DB: Database>(
         &mut self,
         from: &B160,
         to: &B160,
@@ -192,9 +192,11 @@ impl JournaledState {
     ) -> Result<(), InstructionResult> {
         // load accounts
         self.load_account(*from, db)
+            .await
             .map_err(|_| InstructionResult::FatalExternalError)?;
 
         self.load_account(*to, db)
+            .await
             .map_err(|_| InstructionResult::FatalExternalError)?;
 
         // sub balance from
@@ -236,7 +238,7 @@ impl JournaledState {
     /// 4. Add fund to created account
     /// 5. Increment nonce of created account if SpuriousDragon is active
     /// 6. Decrease balance of caller account.
-    ///  
+    ///
     /// Safety: It is assumed that caller balance is already checked and that
     /// caller is already loaded inside evm. This is already done inside `create_inner`
     pub fn create_account_checkpoint<SPEC: Spec>(
@@ -433,13 +435,13 @@ impl JournaledState {
     }
 
     /// transfer balance from address to target. Check if target exist/is_cold
-    pub fn selfdestruct<DB: Database>(
+    pub async fn selfdestruct<DB: Database>(
         &mut self,
         address: B160,
         target: B160,
         db: &mut DB,
     ) -> Result<SelfDestructResult, DB::Error> {
-        let (is_cold, target_exists) = self.load_account_exist(target, db)?;
+        let (is_cold, target_exists) = self.load_account_exist(target, db).await?;
         // transfer all the balance
         let acc = self.state.get_mut(&address).unwrap();
         let balance = mem::take(&mut acc.info.balance);
@@ -474,12 +476,12 @@ impl JournaledState {
         })
     }
 
-    pub fn initial_account_and_code_load<DB: Database>(
+    pub async fn initial_account_and_code_load<DB: Database>(
         &mut self,
         address: B160,
         db: &mut DB,
     ) -> Result<&mut Account, DB::Error> {
-        let account = self.initial_account_load(address, &[], db)?;
+        let account = self.initial_account_load(address, &[], db).await?;
         if account.info.code.is_none() {
             if account.info.code_hash == KECCAK_EMPTY {
                 account.info.code = Some(Bytecode::new());
@@ -493,7 +495,7 @@ impl JournaledState {
     }
 
     /// Initial load of account. This load will not be tracked inside journal
-    pub fn initial_account_load<DB: Database>(
+    pub async fn initial_account_load<DB: Database>(
         &mut self,
         address: B160,
         slots: &[U256],
@@ -507,12 +509,13 @@ impl JournaledState {
             }
             Entry::Vacant(vac) => {
                 let mut account = db
-                    .basic(address)?
+                    .basic(address)
+                    .await?
                     .map(|i| i.into())
                     .unwrap_or(Account::new_not_existing());
 
                 for slot in slots {
-                    let storage = db.storage(address, *slot)?;
+                    let storage = db.storage(address, *slot).await?;
                     account.storage.insert(*slot, StorageSlot::new(storage));
                 }
 
@@ -522,7 +525,7 @@ impl JournaledState {
     }
 
     /// load account into memory. return if it is cold or hot accessed
-    pub fn load_account<DB: Database>(
+    pub async fn load_account<DB: Database>(
         &mut self,
         address: B160,
         db: &mut DB,
@@ -530,7 +533,7 @@ impl JournaledState {
         Ok(match self.state.entry(address) {
             Entry::Occupied(entry) => (entry.into_mut(), false),
             Entry::Vacant(vac) => {
-                let account = if let Some(account) = db.basic(address)? {
+                let account = if let Some(account) = db.basic(address).await? {
                     account.into()
                 } else {
                     Account::new_not_existing()
@@ -551,13 +554,13 @@ impl JournaledState {
     }
 
     // first is is_cold second bool is exists.
-    pub fn load_account_exist<DB: Database>(
+    pub async fn load_account_exist<DB: Database>(
         &mut self,
         address: B160,
         db: &mut DB,
     ) -> Result<(bool, bool), DB::Error> {
         let is_before_spurious_dragon = self.is_before_spurious_dragon;
-        let (acc, is_cold) = self.load_account(address, db)?;
+        let (acc, is_cold) = self.load_account(address, db).await?;
 
         let exist = if is_before_spurious_dragon {
             let is_existing = !acc.is_loaded_as_not_existing();
@@ -569,12 +572,12 @@ impl JournaledState {
         Ok((is_cold, exist))
     }
 
-    pub fn load_code<DB: Database>(
+    pub async fn load_code<DB: Database>(
         &mut self,
         address: B160,
         db: &mut DB,
     ) -> Result<(&mut Account, bool), DB::Error> {
-        let (acc, is_cold) = self.load_account(address, db)?;
+        let (acc, is_cold) = self.load_account(address, db).await?;
         if acc.info.code.is_none() {
             if acc.info.code_hash == KECCAK_EMPTY {
                 let empty = Bytecode::new();
@@ -588,7 +591,7 @@ impl JournaledState {
     }
 
     // account is already present and loaded.
-    pub fn sload<DB: Database>(
+    pub async fn sload<DB: Database>(
         &mut self,
         address: B160,
         key: U256,
@@ -603,7 +606,7 @@ impl JournaledState {
                 let value = if is_newly_created {
                     U256::ZERO
                 } else {
-                    db.storage(address, key)?
+                    db.storage(address, key).await?
                 };
                 // add it to journal as cold loaded.
                 self.journal
@@ -625,7 +628,7 @@ impl JournaledState {
 
     /// account should already be present in our state.
     /// returns (original,present,new) slot
-    pub fn sstore<DB: Database>(
+    pub async fn sstore<DB: Database>(
         &mut self,
         address: B160,
         key: U256,
@@ -633,7 +636,7 @@ impl JournaledState {
         db: &mut DB,
     ) -> Result<(U256, U256, U256, bool), DB::Error> {
         // assume that acc exists and load the slot.
-        let (present, is_cold) = self.sload(address, key, db)?;
+        let (present, is_cold) = self.sload(address, key, db).await?;
         let acc = self.state.get_mut(&address).unwrap();
 
         // if there is no original value in dirty return present value, that is our original.

@@ -48,6 +48,8 @@ pub struct Interpreter {
     pub memory_limit: u64,
 }
 
+unsafe impl Send for Interpreter {}
+
 impl Interpreter {
     /// Current opcode
     pub fn current_opcode(&self) -> u8 {
@@ -127,33 +129,33 @@ impl Interpreter {
 
     /// Execute next instruction
     #[inline(always)]
-    pub fn step<H: Host, SPEC: Spec>(&mut self, host: &mut H) {
+    pub async fn step<H: Host, SPEC: Spec>(&mut self, host: &mut H) {
         // step.
         let opcode = unsafe { *self.instruction_pointer };
         // Safety: In analysis we are doing padding of bytecode so that we are sure that last
         // byte instruction is STOP so we are safe to just increment program_counter bcs on last instruction
         // it will do noop and just stop execution of this contract
         self.instruction_pointer = unsafe { self.instruction_pointer.offset(1) };
-        eval::<H, SPEC>(opcode, self, host);
+        eval::<H, SPEC>(opcode, self, host).await;
     }
 
     /// loop steps until we are finished with execution
-    pub fn run<H: Host, SPEC: Spec>(&mut self, host: &mut H) -> InstructionResult {
+    pub async fn run<H: Host, SPEC: Spec>(&mut self, host: &mut H) -> InstructionResult {
         while self.instruction_result == InstructionResult::Continue {
-            self.step::<H, SPEC>(host)
+            self.step::<H, SPEC>(host).await
         }
         self.instruction_result
     }
 
     /// loop steps until we are finished with execution
-    pub fn run_inspect<H: Host, SPEC: Spec>(&mut self, host: &mut H) -> InstructionResult {
+    pub async fn run_inspect<H: Host, SPEC: Spec>(&mut self, host: &mut H) -> InstructionResult {
         while self.instruction_result == InstructionResult::Continue {
             // step
             let ret = host.step(self);
             if ret != InstructionResult::Continue {
                 return ret;
             }
-            self.step::<H, SPEC>(host);
+            self.step::<H, SPEC>(host).await;
 
             // step ends
             let ret = host.step_end(self, self.instruction_result);

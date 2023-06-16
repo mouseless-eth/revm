@@ -124,8 +124,8 @@ impl<DB: Database> Inspector<DB> for CustomPrintTracer {
 mod test {
 
     #[cfg(not(feature = "no_gas_measuring"))]
-    #[test]
-    fn gas_calculation_underflow() {
+    #[tokio::test]
+    async fn gas_calculation_underflow() {
         use crate::primitives::hex_literal;
         // https://github.com/bluealloy/revm/issues/277
         // checks this use case
@@ -149,6 +149,8 @@ mod test {
             crate::primitives::TransactTo::Call(crate::primitives::B160(callee));
         evm.env.tx.data = crate::primitives::Bytes::new();
         evm.env.tx.value = crate::primitives::U256::ZERO;
-        let _ = evm.inspect_commit(super::CustomPrintTracer::default());
+        let _ = evm
+            .inspect_commit(super::CustomPrintTracer::default())
+            .await;
     }
 }

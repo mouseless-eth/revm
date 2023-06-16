@@ -22,10 +22,11 @@ pub enum DatabaseComponentError<SE, BHE> {
     BlockHash(BHE),
 }
 
+#[async_trait::async_trait]
 impl<S: State, BH: BlockHash> Database for DatabaseComponents<S, BH> {
     type Error = DatabaseComponentError<S::Error, BH::Error>;
 
-    fn basic(&mut self, address: B160) -> Result<Option<AccountInfo>, Self::Error> {
+    async fn basic(&mut self, address: B160) -> Result<Option<AccountInfo>, Self::Error> {
         self.state.basic(address).map_err(Self::Error::State)
     }
 
@@ -35,7 +36,7 @@ impl<S: State, BH: BlockHash> Database for DatabaseComponents<S, BH> {
             .map_err(Self::Error::State)
     }
 
-    fn storage(&mut self, address: B160, index: U256) -> Result<U256, Self::Error> {
+    async fn storage(&mut self, address: B160, index: U256) -> Result<U256, Self::Error> {
         self.state
             .storage(address, index)
             .map_err(Self::Error::State)
@@ -48,10 +49,11 @@ impl<S: State, BH: BlockHash> Database for DatabaseComponents<S, BH> {
     }
 }
 
+#[async_trait::async_trait]
 impl<S: StateRef, BH: BlockHashRef> DatabaseRef for DatabaseComponents<S, BH> {
     type Error = DatabaseComponentError<S::Error, BH::Error>;
 
-    fn basic(&self, address: B160) -> Result<Option<AccountInfo>, Self::Error> {
+    async fn basic(&self, address: B160) -> Result<Option<AccountInfo>, Self::Error> {
         self.state.basic(address).map_err(Self::Error::State)
     }
 
@@ -61,7 +63,7 @@ impl<S: StateRef, BH: BlockHashRef> DatabaseRef for DatabaseComponents<S, BH> {
             .map_err(Self::Error::State)
     }
 
-    fn storage(&self, address: B160, index: U256) -> Result<U256, Self::Error> {
+    async fn storage(&self, address: B160, index: U256) -> Result<U256, Self::Error> {
         self.state
             .storage(address, index)
             .map_err(Self::Error::State)

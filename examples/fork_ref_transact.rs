@@ -50,10 +50,10 @@ async fn main() -> Result<()> {
     let mut ethersdb = EthersDB::new(Arc::clone(&client), None).unwrap();
 
     // query basic properties of an account incl bytecode
-    let acc_info = ethersdb.basic(pool_address).unwrap().unwrap();
+    let acc_info = ethersdb.basic(pool_address).await.unwrap().unwrap();
 
     // query value of storage slot at account address
-    let value = ethersdb.storage(pool_address, slot).unwrap();
+    let value = ethersdb.storage(pool_address, slot).await.unwrap();
 
     // initialise empty in-memory-db
     let mut cache_db = CacheDB::new(EmptyDB::default());
@@ -64,6 +64,7 @@ async fn main() -> Result<()> {
     // insert our pre-loaded storage slot to the corresponding contract key (address) in the DB
     cache_db
         .insert_account_storage(pool_address, slot, value)
+        .await
         .unwrap();
 
     // initialise an empty (default) EVM
@@ -83,7 +84,7 @@ async fn main() -> Result<()> {
     evm.env.tx.value = rU256::try_from(0)?;
 
     // execute transaction without writing to the DB
-    let ref_tx = evm.transact_ref().unwrap();
+    let ref_tx = evm.transact_ref().await.unwrap();
     // select ExecutionResult struct
     let result = ref_tx.result;
 

@@ -202,8 +202,8 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_gas_inspector() {
+    #[tokio::test]
+    async fn test_gas_inspector() {
         let contract_data: Bytes = Bytes::from(vec![
             opcode::PUSH1,
             0x1,
@@ -229,7 +229,7 @@ mod tests {
         evm.env.tx.gas_limit = 21100;
 
         let mut inspector = StackInspector::default();
-        let ResultAndState { result, state } = evm.inspect(&mut inspector).unwrap();
+        let ResultAndState { result, state } = evm.inspect(&mut inspector).await.unwrap();
         println!("{result:?} {state:?} {inspector:?}");
 
         for (pc, gas) in inspector.gas_remaining_steps {

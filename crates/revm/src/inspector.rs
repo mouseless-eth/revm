@@ -22,7 +22,7 @@ pub mod inspectors {
 }
 
 #[auto_impl(&mut, Box)]
-pub trait Inspector<DB: Database> {
+pub trait Inspector<DB: Database>: Send + Sync {
     /// Called Before the interpreter is initialized.
     ///
     /// If anything other than [InstructionResult::Continue] is returned then execution of the interpreter is

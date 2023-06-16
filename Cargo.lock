@@ -1662,6 +1662,7 @@ name = "revm"
 version = "3.3.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "auto_impl",
  "bytes",
  "ethers-contract",
@@ -1682,6 +1683,7 @@ name = "revm-interpreter"
 version = "1.1.2"
 dependencies = [
  "arbitrary",
+ "async-trait",
  "derive_more",
  "enumn",
  "proptest",
@@ -1712,6 +1714,7 @@ name = "revm-primitives"
 version = "1.1.2"
 dependencies = [
  "arbitrary",
+ "async-trait",
  "auto_impl",
  "bitflags 2.2.1",
  "bitvec",

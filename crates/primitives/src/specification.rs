@@ -62,7 +62,7 @@ impl SpecId {
     }
 }
 
-pub trait Spec: Sized {
+pub trait Spec: Sized + Send + Sync {
     #[inline(always)]
     fn enabled(spec_id: SpecId) -> bool {
         Self::SPEC_ID as u8 >= spec_id as u8

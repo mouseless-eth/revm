@@ -8,9 +8,10 @@ use revm_interpreter::primitives::U256;
 use revm_interpreter::{opcode, Interpreter, Memory, Stack};
 use serde_json::json;
 use std::io::Write;
+use std::sync::Mutex;
 
 pub struct TracerEip3155 {
-    output: Box<dyn Write>,
+    output: Mutex<Box<dyn Write + Send>>,
     gas_inspector: GasInspector,
 
     #[allow(dead_code)]
@@ -29,7 +30,11 @@ pub struct TracerEip3155 {
 }
 
 impl TracerEip3155 {
-    pub fn new(output: Box<dyn Write>, trace_mem: bool, trace_return_data: bool) -> Self {
+    pub fn new(
+        output: Mutex<Box<dyn Write + Send + 'static>>,
+        trace_mem: bool,
+        trace_return_data: bool,
+    ) -> Self {
         Self {
             output,
             gas_inspector: GasInspector::default(),
@@ -115,8 +120,10 @@ impl<DB: Database> Inspector<DB> for TracerEip3155 {
                 //fork
             });
 
+            let mut output_guard = self.output.lock().unwrap();
+
             writeln!(
-                self.output,
+                &mut *output_guard,
                 "{:?}",
                 serde_json::to_string(&log_line).unwrap()
             )
@@ -160,8 +167,14 @@ impl TracerEip3155 {
             //returnStack
         });
 
-        writeln!(self.output, "{}", serde_json::to_string(&log_line).unwrap())
-            .expect("If output fails we can ignore the logging");
+        let mut output_guard = self.output.lock().unwrap();
+
+        writeln!(
+            &mut *output_guard,
+            "{}",
+            serde_json::to_string(&log_line).unwrap()
+        )
+        .expect("If output fails we can ignore the logging");
     }
 }
 
