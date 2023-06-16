@@ -324,18 +324,18 @@ impl Env {
         }
 
         // Check that the transaction's nonce is correct
-        if let Some(tx) = self.tx.nonce {
-            let state = account.info.nonce;
-            match tx.cmp(&state) {
-                Ordering::Greater => {
-                    return Err(InvalidTransaction::NonceTooHigh { tx, state });
-                }
-                Ordering::Less => {
-                    return Err(InvalidTransaction::NonceTooLow { tx, state });
-                }
-                _ => {}
-            }
-        }
+        //if let Some(tx) = self.tx.nonce {
+        //    let state = account.info.nonce;
+        //    match tx.cmp(&state) {
+        //        Ordering::Greater => {
+        //            return Err(InvalidTransaction::NonceTooHigh { tx, state });
+        //        }
+        //        Ordering::Less => {
+        //            return Err(InvalidTransaction::NonceTooLow { tx, state });
+        //        }
+        //        _ => {}
+        //    }
+        //}
 
         let balance_check = U256::from(self.tx.gas_limit)
             .checked_mul(self.tx.gas_price)
