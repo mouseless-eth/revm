@@ -20,7 +20,7 @@ macro_rules! check {
 
 macro_rules! gas {
     ($interp:expr, $gas:expr) => {
-        if crate::USE_GAS {
+        if $interp.measure_gas {
             if !$interp.gas.record_cost(($gas)) {
                 $interp.instruction_result = InstructionResult::OutOfGas;
                 return;
@@ -31,7 +31,7 @@ macro_rules! gas {
 
 macro_rules! refund {
     ($interp:expr, $gas:expr) => {{
-        if crate::USE_GAS {
+        if $interp.measure_gas {
             $interp.gas.gas_refund($gas);
         }
     }};
@@ -39,7 +39,7 @@ macro_rules! refund {
 
 macro_rules! gas_or_fail {
     ($interp:expr, $gas:expr) => {
-        if crate::USE_GAS {
+        if $interp.measure_gas {
             match $gas {
                 Some(gas_used) => gas!($interp, gas_used),
                 None => {
@@ -65,7 +65,7 @@ macro_rules! memory_resize {
             }
 
             if new_size > $interp.memory.len() {
-                if crate::USE_GAS {
+                if $interp.measure_gas {
                     let num_bytes = new_size / 32;
                     if !$interp.gas.record_memory(crate::gas::memory_gas(num_bytes)) {
                         $interp.instruction_result = InstructionResult::MemoryLimitOOG;

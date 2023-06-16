@@ -462,7 +462,8 @@ impl<'a, GSPEC: Spec, DB: Database, const INSPECT: bool> EVMImpl<'a, GSPEC, DB, 
         );
 
         #[cfg(not(feature = "memory_limit"))]
-        let mut interpreter = Interpreter::new(contract, gas_limit, is_static);
+        let mut interpreter =
+            Interpreter::new(contract, gas_limit, is_static, self.env().cfg.measure_gas);
 
         if INSPECT {
             self.inspector

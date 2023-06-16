@@ -46,6 +46,8 @@ pub struct Interpreter {
     /// Memory limit. See [`crate::CfgEnv`].
     #[cfg(feature = "memory_limit")]
     pub memory_limit: u64,
+    /// Should interpreter use gas measuring
+    pub measure_gas: bool,
 }
 
 unsafe impl Send for Interpreter {}
@@ -57,7 +59,7 @@ impl Interpreter {
     }
 
     /// Create new interpreter
-    pub fn new(contract: Contract, gas_limit: u64, is_static: bool) -> Self {
+    pub fn new(contract: Contract, gas_limit: u64, is_static: bool, measure_gas: bool) -> Self {
         #[cfg(not(feature = "memory_limit"))]
         {
             Self {
@@ -69,6 +71,7 @@ impl Interpreter {
                 contract,
                 instruction_result: InstructionResult::Continue,
                 is_static,
+                measure_gas,
                 gas: Gas::new(gas_limit),
             }
         }

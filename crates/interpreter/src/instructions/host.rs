@@ -305,14 +305,14 @@ pub async fn create<const IS_CREATE2: bool, SPEC: Spec>(
     match return_reason {
         return_ok!() => {
             push_b256!(interpreter, address.unwrap_or_default().into());
-            if crate::USE_GAS {
+            if interpreter.measure_gas {
                 interpreter.gas.erase_cost(gas.remaining());
                 interpreter.gas.record_refund(gas.refunded());
             }
         }
         return_revert!() => {
             push_b256!(interpreter, B256::zero());
-            if crate::USE_GAS {
+            if interpreter.measure_gas {
                 interpreter.gas.erase_cost(gas.remaining());
             }
         }
@@ -499,7 +499,7 @@ pub async fn call_inner<SPEC: Spec>(
     match reason {
         return_ok!() => {
             // return unspend gas.
-            if crate::USE_GAS {
+            if interpreter.measure_gas {
                 interpreter.gas.erase_cost(gas.remaining());
                 interpreter.gas.record_refund(gas.refunded());
             }
@@ -509,7 +509,7 @@ pub async fn call_inner<SPEC: Spec>(
             push!(interpreter, U256::from(1));
         }
         return_revert!() => {
-            if crate::USE_GAS {
+            if interpreter.measure_gas {
                 interpreter.gas.erase_cost(gas.remaining());
             }
             interpreter

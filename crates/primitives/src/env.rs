@@ -118,6 +118,9 @@ pub struct CfgEnv {
     /// This is useful for testing method calls with zero gas price.
     #[cfg(feature = "optional_no_base_fee")]
     pub disable_base_fee: bool,
+    /// Should gas used be measured
+    /// By default, it is set to `false`.
+    pub measure_gas: bool,
 }
 
 impl CfgEnv {
@@ -188,6 +191,7 @@ impl Default for CfgEnv {
             spec_id: SpecId::LATEST,
             perf_analyse_created_bytecodes: Default::default(),
             limit_contract_code_size: None,
+            measure_gas: false,
             #[cfg(feature = "memory_limit")]
             memory_limit: 2u64.pow(32) - 1,
             #[cfg(feature = "optional_balance_check")]
