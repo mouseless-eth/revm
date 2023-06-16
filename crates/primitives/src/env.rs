@@ -47,7 +47,7 @@ pub struct TxEnv {
     pub access_list: Vec<(B160, Vec<U256>)>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum TransactTo {
     Call(B160),
@@ -64,7 +64,7 @@ impl TransactTo {
 }
 
 /// Create scheme.
-#[derive(Clone, Copy, Eq, PartialEq, Debug)]
+#[derive(Clone, Copy, Eq, PartialEq, Debug, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum CreateScheme {
     /// Legacy create scheme of `CREATE`.
