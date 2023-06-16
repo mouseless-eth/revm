@@ -311,17 +311,20 @@ impl<'a, GSPEC: Spec, DB: Database, const INSPECT: bool> EVMImpl<'a, GSPEC, DB, 
         }
 
         // Increase nonce of caller and check if it overflows
-        let old_nonce;
-        if let Some(nonce) = self.data.journaled_state.inc_nonce(inputs.caller) {
-            old_nonce = nonce - 1;
-        } else {
-            return (InstructionResult::Return, None, gas, Bytes::new());
-        }
+        //let old_nonce;
+        //if let Some(nonce) = self.data.journaled_state.inc_nonce(inputs.caller) {
+        //    old_nonce = nonce - 1;
+        //} else {
+        //    return (InstructionResult::Return, None, gas, Bytes::new());
+        //}
 
         // Create address
         let code_hash = keccak256(&inputs.init_code);
         let created_address = match inputs.scheme {
-            CreateScheme::Create => create_address(inputs.caller, old_nonce),
+            //CreateScheme::Create => create_address(inputs.caller, old_nonce),
+            CreateScheme::Create => {
+                create_address(inputs.caller, self.data.env.tx.nonce.unwrap_or_default())
+            }
             CreateScheme::Create2 { salt } => create2_address(inputs.caller, code_hash, salt),
         };
         let ret = Some(created_address);
