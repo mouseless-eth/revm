@@ -77,9 +77,9 @@ impl<'a, GSPEC: Spec, DB: Database, const INSPECT: bool> Transact<DB::Error>
             initial_tx_gas::<GSPEC>(&tx_data, tx_is_create, &env.tx.access_list);
 
         // Additonal check to see if limit is big enought to cover initial gas.
-        //if env.tx.gas_limit < initial_gas_spend {
-        //    return Err(InvalidTransaction::CallGasCostMoreThanGasLimit.into());
-        //}
+        if env.tx.gas_limit < initial_gas_spend {
+            return Err(InvalidTransaction::CallGasCostMoreThanGasLimit.into());
+        }
 
         // load coinbase
         // EIP-3651: Warm COINBASE. Starts the `COINBASE` address warm
